@@ -1,0 +1,19 @@
+# Core ML
+tensorflow>=2.13.0
+numpy>=1.24.0
+opencv-python>=4.8.0
+
+# Backend API
+fastapi>=0.100.0
+uvicorn[standard]>=0.23.0
+pydantic>=2.0.0
+python-multipart>=0.0.6
+
+# Frontend UI
+streamlit>=1.28.0
+streamlit-drawable-canvas>=0.2.3
+requests>=2.31.0
+pillow>=10.0.0
+
+# Utilities
+matplotlib>=3.7.0

@@ -1,0 +1,117 @@
+import streamlit as st
+import requests
+import base64
+import numpy as np
+from PIL import Image
+import io
+from streamlit_drawable_canvas import st_canvas
+
+BACKEND_URL = "http://127.0.0.1:8000"
+
+st.set_page_config(
+    page_title="MNIST Digit Recognizer", 
+    page_icon="✏️", 
+    layout="centered"
+)
+
+st.title("✏️ MNIST Handwritten Digit Recognizer")
+st.markdown(
+    "Draw a digit (0–9) in the canvas below, then click **Predict**."
+)
+
+# --- Sidebar settings ---
+st.sidebar.header("🎨 Canvas Settings")
+stroke_width = st.sidebar.slider("Pen width", 5, 50, 20)
+stroke_color = st.sidebar.color_picker("Pen color", "#FFFFFF")
+bg_color = st.sidebar.color_picker("Background color", "#000000")
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📊 Model Info")
+st.sidebar.info("""
+**Architecture :**
+- 2 Conv Blocks (32+64 filters)
+- Batch Normalization
+- Dropout (25% & 50%)
+- Data Augmentation
+
+**Expected Accuracy:** 99%+
+""")
+
+# --- Canvas ---
+canvas_result = st_canvas(
+    fill_color="rgba(255, 165, 0, 0.3)",
+    stroke_width=stroke_width,
+    stroke_color=stroke_color,
+    background_color=bg_color,
+    height=280,
+    width=280,
+    drawing_mode="freedraw",
+    key="canvas",
+)
+
+col1, col2 = st.columns(2)
+
+with col1:
+    predict_btn = st.button("🔍 Predict", use_container_width=True, key="predict")
+
+with col2:
+    st.info("Use canvas toolbar (↺) to clear", icon="ℹ️")
+
+# --- Prediction ---
+if predict_btn:
+    if canvas_result.image_data is None:
+        st.warning("⚠️ Please draw something first!")
+    else:
+        # Convert numpy RGBA array → PNG → base64
+        img_array = canvas_result.image_data.astype(np.uint8)
+        pil_image = Image.fromarray(img_array, mode="RGBA")
+
+        buffered = io.BytesIO()
+        pil_image.save(buffered, format="PNG")
+        img_b64 = base64.b64encode(buffered.getvalue()).decode("utf-8")
+
+        with st.spinner("🔮 Predicting..."):
+            try:
+                response = requests.post(
+                    f"{BACKEND_URL}/predict",
+                    json={"image": img_b64},
+                    timeout=10,
+                )
+                response.raise_for_status()
+                result = response.json()
+
+                if "error" in result:
+                    st.error(f"❌ Backend Error: {result['error']}")
+                else:
+                    digit = result["digit"]
+                    confidence = result["confidence"]
+                    top3 = result["top3"]
+
+                    # Display main prediction
+                    st.success(f"## 🎯 Predicted digit: **{digit}**")
+                    st.metric("Confidence", f"{confidence * 100:.1f}%")
+
+                    # Display top 3 predictions
+                    st.subheader("📊 Top 3 predictions")
+                    for item in top3:
+                        col_digit, col_prob = st.columns([1, 4])
+                        with col_digit:
+                            st.write(f"**{item['digit']}**")
+                        with col_prob:
+                            st.progress(
+                                item["probability"],
+                                text=f"{item['probability']*100:.1f}%"
+                            )
+
+            except requests.exceptions.ConnectionError:
+                st.error(
+                    f"❌ Cannot connect to backend at {BACKEND_URL}\n\n"
+                    "Make sure the FastAPI server is running:\n\n"
+                    "`uvicorn backend_mnist_improved:app --host 127.0.0.1 --port 8000 --reload`"
+                )
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+
+# --- Footer ---
+st.markdown("---")
+st.caption("Backend: FastAPI + Uvicorn | Model: Advanced CNN with BatchNorm + Data Augmentation")
