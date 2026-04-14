@@ -4,6 +4,7 @@ import base64
 import numpy as np
 from PIL import Image
 import io
+import os
 
 try:
     from streamlit_drawable_canvas import st_canvas
@@ -20,7 +21,21 @@ except ModuleNotFoundError:
     st.code("pip install streamlit-drawable-canvas>=0.9.3", language="bash")
     st.stop()
 
-BACKEND_URL = "http://127.0.0.1:8000"
+def resolve_backend_url() -> str:
+    # Priority: Streamlit secrets > env var > local default
+    secret_url = None
+    try:
+        secret_url = st.secrets.get("BACKEND_URL")
+    except Exception:
+        secret_url = None
+
+    env_url = os.getenv("BACKEND_URL")
+    url = secret_url or env_url or "http://127.0.0.1:8000"
+    return url.rstrip("/")
+
+
+if "backend_url" not in st.session_state:
+    st.session_state.backend_url = resolve_backend_url()
 
 st.set_page_config(
     page_title="MNIST Digit Recognizer", 
@@ -38,6 +53,15 @@ st.sidebar.header("🎨 Canvas Settings")
 stroke_width = st.sidebar.slider("Pen width", 5, 50, 20)
 stroke_color = st.sidebar.color_picker("Pen color", "#FFFFFF")
 bg_color = st.sidebar.color_picker("Background color", "#000000")
+
+st.sidebar.markdown("---")
+backend_url = st.sidebar.text_input(
+    "Backend URL",
+    value=st.session_state.backend_url,
+    help="For Streamlit Cloud, set your public FastAPI endpoint (e.g. https://my-api.onrender.com).",
+)
+BACKEND_URL = backend_url.rstrip("/")
+st.session_state.backend_url = BACKEND_URL
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### 📊 Model Info")
@@ -120,8 +144,10 @@ if predict_btn:
             except requests.exceptions.ConnectionError:
                 st.error(
                     f"❌ Cannot connect to backend at {BACKEND_URL}\n\n"
-                    "Make sure the FastAPI server is running:\n\n"
-                    "`uvicorn backend_mnist_improved:app --host 127.0.0.1 --port 8000 --reload`"
+                    "If you are on Streamlit Cloud, 127.0.0.1 will not work unless backend runs in the same container.\n\n"
+                    "Set a public backend URL in the sidebar or via secret/env BACKEND_URL.\n\n"
+                    "Local command:\n"
+                    "uvicorn backend_mnist_improved:app --host 127.0.0.1 --port 8000 --reload"
                 )
             except Exception as e:
                 st.error(f"❌ Error: {e}")
