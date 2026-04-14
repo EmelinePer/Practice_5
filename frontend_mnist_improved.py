@@ -4,7 +4,21 @@ import base64
 import numpy as np
 from PIL import Image
 import io
-from streamlit_drawable_canvas import st_canvas
+
+try:
+    from streamlit_drawable_canvas import st_canvas
+except ModuleNotFoundError:
+    st.set_page_config(
+        page_title="MNIST Digit Recognizer",
+        page_icon="✏️",
+        layout="centered"
+    )
+    st.error(
+        "The dependency 'streamlit-drawable-canvas' is missing in this deployment. "
+        "Add it to requirements.txt and redeploy."
+    )
+    st.code("pip install streamlit-drawable-canvas>=0.9.3", language="bash")
+    st.stop()
 
 BACKEND_URL = "http://127.0.0.1:8000"
 
